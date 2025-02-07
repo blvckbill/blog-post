@@ -6,8 +6,8 @@ class BlogCreate(BaseModel):
     title: str
 
 class BlogUpdate(BaseModel):
-    title: str
-    content: str
+    title: Optional[str] = None
+    content: Optional[str] = None
 
 class BlogResponse(BaseModel):
     id: int

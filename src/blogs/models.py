@@ -11,7 +11,7 @@ class BlogPosts(Base):
     id = Column(Integer, primary_key=True, index=True)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     title = Column(String, index=True, nullable=False)
-    content = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
     status = Column(String, default="in-progress")
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
 

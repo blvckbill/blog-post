@@ -1,7 +1,6 @@
 from fastapi import HTTPException
 from src.blogs import service as blog_service
 from sqlalchemy.orm import Session
-from smolagents import ToolCallingAgent, LiteLLMModel, ManagedAgent, CodeAgent
 from .smoltools.jinaai import scrape_page_with_jina_ai, search_facts_with_jina_ai
 from dotenv import load_dotenv
 from smolagents import (
@@ -11,9 +10,9 @@ from smolagents import (
     ManagedAgent,
     DuckDuckGoSearchTool,
 )
-import logging
+import logging, time
 import os
-
+from litellm import RateLimitError
 load_dotenv()
 
 # Initialize the AI model and agent
@@ -79,36 +78,39 @@ blog_manager = CodeAgent(
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
 async def generate_blog_content_and_save(topic: str, db: Session, blog_id: int) -> str:
-    try:
-        # Log the start of content generation
-        logger.info(f"Starting blog generation for topic: {topic}")
-        
-        # Use the AI model to generate the blog content
-        result = blog_manager.run(f"""Create a blog post about: {topic}
-        1. Research the topic thoroughly, focus on specific products and sources
-        2. Write an engaging blog post, not just a list
-        3. Edit and polish the content
-        """)
+    max_retries = 5  # Number of retries before giving up
+    base_delay = 10   # Initial wait time in seconds
 
-        # Check if the result is empty or invalid
-        if not result or len(result.strip()) == 0:
-            raise ValueError("AI generated content is empty or invalid.")
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempt {attempt+1}: Generating blog for topic '{topic}'")
+            
+            result = blog_manager.run(f"""Create a blog post about: {topic}
+            1. Research the topic thoroughly, focus on specific products and sources
+            2. Write an engaging blog post, not just a list
+            3. Edit and polish the content
+            """)
 
-        # Log successful content generation
-        logger.info(f"Successfully generated content for topic: {topic}")
+            if not result or len(result.strip()) == 0:
+                raise ValueError("AI generated content is empty or invalid.")
 
-        # Update the content and status of the blog in the database
-        blog_service.update_blog(db, blog_id, result)
-        
-        return result
+            logger.info(f"Successfully generated content for topic: {topic}")
+            return result
 
-    except ValueError as ve:
-        # Log the specific issue if content is empty or invalid
-        logger.error(f"Failed to generate valid content for topic '{topic}': {ve}")
-        raise HTTPException(status_code=500, detail=f"AI generated invalid content: {ve}")
-    
-    except Exception as e:
-        # Log general errors
-        logger.error(f"Error generating blog content for topic '{topic}': {e}")
-        raise HTTPException(status_code=500, detail=f"Error generating blog content: {e}")
+        except RateLimitError as e:
+            wait_time = base_delay * (2 ** attempt)  # Exponential backoff
+            logger.warning(f"Rate limit exceeded: {e}. Retrying in {wait_time} seconds...")
+            time.sleep(wait_time)
+
+        except ValueError as ve:
+            logger.error(f"Failed to generate valid content for topic '{topic}': {ve}")
+            raise HTTPException(status_code=500, detail=f"AI generated invalid content: {ve}")
+
+        except Exception as e:
+            logger.error(f"Error generating blog content for topic '{topic}': {e}")
+            raise HTTPException(status_code=500, detail=f"Error generating blog content: {e}")
+
+    # If all retries fail, return an error response
+    raise HTTPException(status_code=429, detail="Exceeded maximum retries due to rate limit.")
