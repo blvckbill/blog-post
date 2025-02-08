@@ -4,21 +4,20 @@ from src.database import get_db
 import asyncio
 from src.blogs.models import BlogPosts
 from src.blogs.schemas import BlogCreate, BlogResponse, BlogUpdate
-from src.ai.service import generate_blog_content_and_save  # Assuming this function generates the blog content
+from src.ai.service import generate_blog_content_and_save 
 from src.auth.models import User
-from src.auth.dependencies import get_current_user  # Assuming user authentication exists
+from src.auth.dependencies import get_current_user 
 
 import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/blogs", tags=["Blogs"])
 
-
 def generate_blog_background(topic: str, db: Session, blog_id: int):
     """Background task for generating blog content"""
     try:
         logger.info(f"Background task started for topic: {topic}")
-#  Retrieve the existing blog entry 
+        #  Retrieve the existing blog entry 
         blog = db.query(BlogPosts).filter(BlogPosts.id == blog_id).first()
         if not blog:
             logger.error(f"Blog with ID {blog_id} not found.")
@@ -45,7 +44,6 @@ def generate_blog_background(topic: str, db: Session, blog_id: int):
         blog.status = "failed"
         db.commit()
         
-
 @router.post("/", response_model=BlogResponse)
 def create_blog_post(
     blog: BlogCreate,
@@ -53,7 +51,7 @@ def create_blog_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Trigger AI Blog Generation"""
+    
     
     # Initially create the blog post with a status of "in_progress"
     new_blog = BlogPosts(title=blog.title, content="", status="in_progress", author_id=current_user.id)

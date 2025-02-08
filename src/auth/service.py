@@ -3,7 +3,7 @@ import jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from jwt.exceptions import InvalidTokenError
-from src.auth.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from src.auth.config import SECRET_KEY, ALGORITHM
 from src.auth.models import User
 from src.database import get_db
 from sqlalchemy.orm import Session
